@@ -10,11 +10,15 @@ import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ForkJoinPool;
 import java.util.stream.Collectors;
+import org.apache.commons.collections.CollectionUtils;
 
 public class TransactionService {
 
   private static final String CANNOT_CONSTRUCT_REF_FROM_RISE_FILE = "Cannot Construct Ref from rise file [%s]";
+  private static final String CANNOT_WRITE_TO_RESULT_FILE = "Cannot write to result file [%s]";
   private static final String DELLIMITER = AppConfig.getProperties("app.delimiter");
   private static final String FAILED_TO_READ_PROVIDER_FILE = "Failed to Read provider file[%s]";
   private static final String PROVIDER_COUNT_HEADER_CONFIG = "provider.%s.header";
@@ -28,24 +32,25 @@ public class TransactionService {
   private static final String RESULT_FILE_PATH = "%s/%s";
   private static final int RISE_RUNNING_ID_PATH = 8;
   private static final int PROVIDER_REF_PATH = 12;
-  private static final String WRONG_FORMAT_DETECTED_FOR_THIS_PROVIDER = "Wrong format Detected for this provider[%s]";
-  private static final String ZERO_WITH_NO_BREAK_SPACE_FORMAT = "\uFEFF";
+   private static final String ZERO_WITH_NO_BREAK_SPACE_FORMAT = "\uFEFF";
 
   public TransactionService() {
   }
 
-  private Set<String> extractTransactionIdFromRise(File file, int columnIndex) throws Exception {
-    Set<String> ids = new HashSet<>();
-
+  private Set<ProviderRefDTO> extractTransactionIdFromRise(File file, int columnIndex) {
+    Set<ProviderRefDTO> ids = new HashSet<>();
     try (BufferedReader br = new BufferedReader(new FileReader(file))) {
       String line;
       br.readLine();
       while ((line = br.readLine()) != null) {
+        System.out.println(String.format("Thread name [%s], data RISE [%s]", Thread.currentThread().getName(), line));
         String[] parts = line.trim().split(DELLIMITER);
-        ids.add(parts[columnIndex].trim());
+        ids.add(new ProviderRefDTO(parts[columnIndex].trim(), null));
       }
+      return ids;
+    } catch (IOException e) {
+      throw new RuntimeException(e);
     }
-    return ids;
   }
 
   public String generateResultFile(File providerFile, File riseFile, String selectedProvider, String fileLocation) {
@@ -58,14 +63,21 @@ public class TransactionService {
       String.format(PROVIDER_STATUS_MESSAGE_CONFIG, selectedProvider));
     final String providerRefIdPath = AppConfig.getProperties(
       String.format(PROVIDER_PROVIDER_REF_ID_PATH_CONFIG, selectedProvider));
-
     final ProviderConfig providerConfig = new ProviderConfig(runningIdPath, statusPath, statusMessage, skipHeader,
       header, providerRefIdPath);
     try {
-      final Set<String> riseRefIds = extractTransactionIdFromRise(riseFile, validateRefPath(providerConfig));
-      return compareRunningId(providerFile, riseRefIds, providerConfig, fileLocation);
+      final ForkJoinPool pool = new ForkJoinPool();
+      final CompletableFuture<Set<ProviderRefDTO>> riseFutureRef = CompletableFuture.supplyAsync(
+        () -> extractTransactionIdFromRise(riseFile, validateRefPath(providerConfig)), pool);
+      final CompletableFuture<Set<ProviderRefDTO>> providerFutureRef = CompletableFuture.supplyAsync(
+        () -> extractTransactionIdFromProvider(providerFile, providerConfig), pool);
+      final Set<ProviderRefDTO> riseRefList = riseFutureRef.join();
+      final Set<ProviderRefDTO> providerRefList = providerFutureRef.join();
+      final Set<ProviderRefDTO> resultRefList = new HashSet<>(CollectionUtils.removeAll(providerRefList, riseRefList));
+
+      return generateResultFile(resultRefList, fileLocation, providerFile, providerConfig.skipHeader());
     } catch (Exception e) {
-      return String.format(CANNOT_CONSTRUCT_REF_FROM_RISE_FILE, riseFile.getName());
+      return String.format("Failed to Compare File [%s] and File [%s]", riseFile.getName(), providerFile.getName());
     }
   }
 
@@ -75,35 +87,22 @@ public class TransactionService {
 
   private boolean validateHeader(String configHeader, String header) {
     final String finalHeader = Arrays.stream(header.toLowerCase().split(DELLIMITER))
-      .map(data -> data.trim().replace(ZERO_WITH_NO_BREAK_SPACE_FORMAT, ""))
-      .collect(Collectors.joining(",")).trim();
+      .map(data -> data.trim().replace(ZERO_WITH_NO_BREAK_SPACE_FORMAT, "")).collect(Collectors.joining(",")).trim();
     return !configHeader.equalsIgnoreCase(finalHeader);
   }
 
-  private String compareRunningId(File providerFile, Set<String> refIds, ProviderConfig providerConfig,
-    String fileLocation) {
-    final File resultFile = new File(
-      String.format(RESULT_FILE_PATH, fileLocation, providerFile.getName().replace(".csv", "-result.csv")));
 
+  private Set<ProviderRefDTO> extractTransactionIdFromProvider(File providerFile, ProviderConfig providerConfig) {
+    final Set<ProviderRefDTO> providerRefList = new HashSet<>();
     try (BufferedReader br = new BufferedReader(new FileReader(providerFile))) {
       String line;
-      for (int i = 1; i < providerConfig.skipHeader(); i++) {
+      for (int i = 0; i < providerConfig.skipHeader(); i++) {
         br.readLine();
       }
-      final String header = br.readLine();
-      if (validateHeader(providerConfig.header(), header)) {
-        throw new RuntimeException();
-      }
-      Files.writeString(resultFile.toPath(), String.format(RESULT_FILE_FORMAT, header), StandardOpenOption.CREATE,
-        StandardOpenOption.APPEND);
+      int x = 0;
       while ((line = br.readLine()) != null) {
         final String[] columns = line.trim().split(DELLIMITER);
-        String refId = "";
-        if (providerConfig.runningIdPath().isBlank()) {
-          refId = columns[Integer.parseInt(providerConfig.providerRefIdPath())];
-        } else {
-          refId = columns[Integer.parseInt(providerConfig.runningIdPath())];
-        }
+        x += 1;
         if (!providerConfig.statusSuccess().isBlank()) {
           final int path = Integer.parseInt(providerConfig.statusPath());
           final String status = columns[path].trim();
@@ -111,20 +110,45 @@ public class TransactionService {
             continue;
           }
         }
+        String refId = "";
+        if (providerConfig.runningIdPath().isBlank()) {
+          refId = columns[Integer.parseInt(providerConfig.providerRefIdPath())];
+        } else {
+          refId = columns[Integer.parseInt(providerConfig.runningIdPath())];
+        }
 
-        if (!refId.isBlank() && !refIds.contains(refId)) {
+        providerRefList.add(new ProviderRefDTO(refId.trim(), x));
+      }
+      return providerRefList;
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  private String generateResultFile(Set<ProviderRefDTO> resultRefList, String fileLocation, File providerFile,
+    int skipHeader) {
+    final File resultFile = new File(
+      String.format(RESULT_FILE_PATH, fileLocation, providerFile.getName().replace(".csv", "-result.csv")));
+
+    try (BufferedReader br = new BufferedReader(new FileReader(providerFile))) {
+      final Set<Integer> resultLine = resultRefList.stream().map(ProviderRefDTO::getLine).collect(Collectors.toSet());
+      String line;
+      for (int i = 0; i < skipHeader; i++) {
+        br.readLine();
+      }
+      int x = 1;
+      while ((line = br.readLine()) != null) {
+        if (resultLine.contains(x)) {
           Files.writeString(resultFile.toPath(), String.format(RESULT_FILE_FORMAT, line), StandardOpenOption.CREATE,
             StandardOpenOption.APPEND);
         }
+        x+=1;
       }
       return String.format(COMPARISON_COMPLETE_PLEASE_CHECK_IN_FOLDER_DOWNLOAD_WITH_FILE_NAME, resultFile.getName());
-    } catch (RuntimeException e) {
-      resultFile.deleteOnExit();
-      return String.format(WRONG_FORMAT_DETECTED_FOR_THIS_PROVIDER, providerFile.getName());
     } catch (IOException e) {
       resultFile.deleteOnExit();
-      return String.format(FAILED_TO_READ_PROVIDER_FILE, providerFile.getName());
+      return String.format(CANNOT_WRITE_TO_RESULT_FILE, resultFile.getName());
     }
-
   }
 }
+

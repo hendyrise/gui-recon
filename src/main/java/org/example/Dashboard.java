@@ -69,7 +69,7 @@ public class Dashboard extends JFrame {
     final String reconStatusMessage = transactionService.generateResultFile(providerFile, riseFile,
       (String) providerCombo.getSelectedItem(), chooseLocationButton.getText());
     JOptionPane.showMessageDialog(this, reconStatusMessage);
-    resetFields();
+    //resetFields();
   }
 
   private void openFileChooser(boolean isRise) {
@@ -81,18 +81,10 @@ public class Dashboard extends JFrame {
         return;
       }
       if (isRise) {
-//        if (!selected.getName().toLowerCase().contains(RISE)) {
-//          JOptionPane.showMessageDialog(this, WRONG_FILE_FORMAT);
-//          return;
-//        }
         riseFile = selected;
         riseButton.setText(selected.getName());
         providerButton.setEnabled(true);
       } else {
-//        if (!selected.getName().toLowerCase().contains(PROVIDER)) {
-//          JOptionPane.showMessageDialog(this, WRONG_PROVIDER_OR_WRONG_FILE_FORMAT);
-//          return;
-//        }
         providerFile = selected;
         providerButton.setText(selected.getName());
         chooseLocationButton.setEnabled(true);
