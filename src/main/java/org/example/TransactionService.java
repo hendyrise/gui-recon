@@ -17,13 +17,15 @@ import org.apache.commons.collections.CollectionUtils;
 
 public class TransactionService {
 
-  private static final String CANNOT_CONSTRUCT_REF_FROM_RISE_FILE = "Cannot Construct Ref from rise file [%s]";
   private static final String CANNOT_WRITE_TO_RESULT_FILE = "Cannot write to result file [%s]";
+  private static final String CSV = ".csv";
   private static final String DELLIMITER = AppConfig.getProperties("app.delimiter");
-  private static final String FAILED_TO_READ_PROVIDER_FILE = "Failed to Read provider file[%s]";
+  private static final String FAILED_TO_COMPARE_FILE_AND_FILE = "Failed to Compare File [%s] and File [%s]";
+  private static final String INVALID_HEADER_FOR_FILE = "Invalid Header for file [%s]";
   private static final String PROVIDER_COUNT_HEADER_CONFIG = "provider.%s.header";
   private static final String PROVIDER_PROVIDER_REF_ID_PATH_CONFIG = "provider.%s.provider-ref-id-path";
   private static final String PROVIDER_SKIP_HEADER_CONFIG = "provider.%s.skip-header";
+  private static final String RESULT_CSV = "-result.csv";
   private static final String RESULT_FILE_FORMAT = "%s\n";
   private static final String COMPARISON_COMPLETE_PLEASE_CHECK_IN_FOLDER_DOWNLOAD_WITH_FILE_NAME = "Comparison complete please check in folder download with file name [%s]";
   private static final String PROVIDER_RUNNING_ID_CONFIG = "provider.%s.running-id-path";
@@ -32,7 +34,7 @@ public class TransactionService {
   private static final String RESULT_FILE_PATH = "%s/%s";
   private static final int RISE_RUNNING_ID_PATH = 8;
   private static final int PROVIDER_REF_PATH = 12;
-   private static final String ZERO_WITH_NO_BREAK_SPACE_FORMAT = "\uFEFF";
+  private static final String ZERO_WITH_NO_BREAK_SPACE_FORMAT = "\uFEFF";
 
   public TransactionService() {
   }
@@ -43,7 +45,6 @@ public class TransactionService {
       String line;
       br.readLine();
       while ((line = br.readLine()) != null) {
-        System.out.println(String.format("Thread name [%s], data RISE [%s]", Thread.currentThread().getName(), line));
         String[] parts = line.trim().split(DELLIMITER);
         ids.add(new ProviderRefDTO(parts[columnIndex].trim(), null));
       }
@@ -53,7 +54,7 @@ public class TransactionService {
     }
   }
 
-  public String generateResultFile(File providerFile, File riseFile, String selectedProvider, String fileLocation) {
+  private ProviderConfig generateProviderConfig(String selectedProvider) {
     final String runningIdPath = AppConfig.getProperties(String.format(PROVIDER_RUNNING_ID_CONFIG, selectedProvider));
     final String statusPath = AppConfig.getProperties(String.format(PROVIDER_STATUS_CONFIG, selectedProvider));
     final int skipHeader = Integer.parseInt(
@@ -63,8 +64,11 @@ public class TransactionService {
       String.format(PROVIDER_STATUS_MESSAGE_CONFIG, selectedProvider));
     final String providerRefIdPath = AppConfig.getProperties(
       String.format(PROVIDER_PROVIDER_REF_ID_PATH_CONFIG, selectedProvider));
-    final ProviderConfig providerConfig = new ProviderConfig(runningIdPath, statusPath, statusMessage, skipHeader,
-      header, providerRefIdPath);
+    return new ProviderConfig(runningIdPath, statusPath, statusMessage, skipHeader, header, providerRefIdPath);
+  }
+
+  public String generateResultFile(File providerFile, File riseFile, String selectedProvider, String fileLocation) {
+    final ProviderConfig providerConfig = generateProviderConfig(selectedProvider);
     try {
       final ForkJoinPool pool = new ForkJoinPool();
       final CompletableFuture<Set<ProviderRefDTO>> riseFutureRef = CompletableFuture.supplyAsync(
@@ -77,7 +81,7 @@ public class TransactionService {
 
       return generateResultFile(resultRefList, fileLocation, providerFile, providerConfig.skipHeader());
     } catch (Exception e) {
-      return String.format("Failed to Compare File [%s] and File [%s]", riseFile.getName(), providerFile.getName());
+      return String.format(FAILED_TO_COMPARE_FILE_AND_FILE, riseFile.getName(), providerFile.getName());
     }
   }
 
@@ -96,8 +100,12 @@ public class TransactionService {
     final Set<ProviderRefDTO> providerRefList = new HashSet<>();
     try (BufferedReader br = new BufferedReader(new FileReader(providerFile))) {
       String line;
-      for (int i = 0; i < providerConfig.skipHeader(); i++) {
+      for (int i = 1; i < providerConfig.skipHeader(); i++) {
         br.readLine();
+      }
+      final String header = br.readLine();
+      if (!validateHeader(providerConfig.header(), header)) {
+        throw new IOException(String.format(INVALID_HEADER_FOR_FILE, providerFile.getName()));
       }
       int x = 0;
       while ((line = br.readLine()) != null) {
@@ -116,7 +124,6 @@ public class TransactionService {
         } else {
           refId = columns[Integer.parseInt(providerConfig.runningIdPath())];
         }
-
         providerRefList.add(new ProviderRefDTO(refId.trim(), x));
       }
       return providerRefList;
@@ -128,7 +135,7 @@ public class TransactionService {
   private String generateResultFile(Set<ProviderRefDTO> resultRefList, String fileLocation, File providerFile,
     int skipHeader) {
     final File resultFile = new File(
-      String.format(RESULT_FILE_PATH, fileLocation, providerFile.getName().replace(".csv", "-result.csv")));
+      String.format(RESULT_FILE_PATH, fileLocation, providerFile.getName().replace(CSV, RESULT_CSV)));
 
     try (BufferedReader br = new BufferedReader(new FileReader(providerFile))) {
       final Set<Integer> resultLine = resultRefList.stream().map(ProviderRefDTO::getLine).collect(Collectors.toSet());
@@ -142,7 +149,7 @@ public class TransactionService {
           Files.writeString(resultFile.toPath(), String.format(RESULT_FILE_FORMAT, line), StandardOpenOption.CREATE,
             StandardOpenOption.APPEND);
         }
-        x+=1;
+        x += 1;
       }
       return String.format(COMPARISON_COMPLETE_PLEASE_CHECK_IN_FOLDER_DOWNLOAD_WITH_FILE_NAME, resultFile.getName());
     } catch (IOException e) {
