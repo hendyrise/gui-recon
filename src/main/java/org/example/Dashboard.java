@@ -69,7 +69,7 @@ public class Dashboard extends JFrame {
     final String reconStatusMessage = transactionService.generateResultFile(providerFile, riseFile,
       (String) providerCombo.getSelectedItem(), chooseLocationButton.getText());
     JOptionPane.showMessageDialog(this, reconStatusMessage);
-    //resetFields();
+    resetFields();
   }
 
   private void openFileChooser(boolean isRise) {
