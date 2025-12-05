@@ -51,7 +51,7 @@ public class TransactionService {
         br.readLine();
       }
       final String header = br.readLine();
-      if (!validateHeader(providerConfig.header(), header)) {
+      if (validateHeader(providerConfig.header(), header)) {
         throw new IOException(String.format(INVALID_HEADER_FOR_FILE, providerFile.getName()));
       }
       int x = 0;
