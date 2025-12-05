@@ -51,10 +51,10 @@ public class TransactionService {
       if (validateHeader(providerConfig.header(), header)) {
         throw new IOException(String.format(INVALID_HEADER_FOR_FILE, providerFile.getName()));
       }
-      int x = 0;
+      int lineNumber = 0;
       while ((line = br.readLine()) != null) {
         final String[] columns = line.trim().split(DELLIMITER);
-        x += 1;
+        lineNumber += 1;
         if (!providerConfig.statusSuccess().isBlank()) {
           final int path = Integer.parseInt(providerConfig.statusPath());
           final String status = columns[path].trim();
@@ -68,7 +68,7 @@ public class TransactionService {
         } else {
           refId = columns[Integer.parseInt(providerConfig.runningIdPath())];
         }
-        providerRefList.add(new ProviderRefDTO(refId.trim(), x));
+        providerRefList.add(new ProviderRefDTO(refId.trim(), lineNumber));
       }
       return providerRefList;
     } catch (IOException e) {
@@ -128,18 +128,18 @@ public class TransactionService {
       String.format(RESULT_FILE_PATH, fileLocation, providerFile.getName().replace(CSV, RESULT_CSV)));
 
     try (BufferedReader br = new BufferedReader(new FileReader(providerFile))) {
-      final Set<Integer> resultLine = resultRefList.stream().map(ProviderRefDTO::getLine).collect(Collectors.toSet());
+      final Set<Integer> resultLine = resultRefList.stream().map(ProviderRefDTO::getLineNumber).collect(Collectors.toSet());
       String line;
       for (int i = 0; i < skipHeader; i++) {
         br.readLine();
       }
-      int x = 1;
+      int lineNumber = 1;
       while ((line = br.readLine()) != null) {
-        if (resultLine.contains(x)) {
+        if (resultLine.contains(lineNumber)) {
           Files.writeString(resultFile.toPath(), String.format(RESULT_FILE_FORMAT, line), StandardOpenOption.CREATE,
             StandardOpenOption.APPEND);
         }
-        x += 1;
+        lineNumber += 1;
       }
       return String.format(COMPARISON_COMPLETE_PLEASE_CHECK_IN_FOLDER_DOWNLOAD_WITH_FILE_NAME, resultFile.getName());
     } catch (IOException e) {
