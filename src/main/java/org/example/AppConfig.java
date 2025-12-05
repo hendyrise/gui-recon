@@ -1,5 +1,6 @@
 package org.example;
 
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Properties;
@@ -8,19 +9,19 @@ public class AppConfig {
 
   private static final Properties PROPERTIES = new Properties();
 
+  private static final String FAILED_TO_LOAD_APPLICATION_PROPERTIES = "Failed to load application.properties";
+
   static {
-    try (InputStream is = AppConfig.class.getClassLoader()
-      .getResourceAsStream("application.properties")) {
-
-      if (is == null) {
-        throw new RuntimeException("application.properties not found!");
+    String externalPath = System.getProperty("config.path");
+    if (externalPath != null) {
+      try (InputStream fis = new FileInputStream(externalPath)) {
+        PROPERTIES.load(fis);
+      } catch (IOException e) {
+        throw new RuntimeException(FAILED_TO_LOAD_APPLICATION_PROPERTIES, e);
       }
-
-      PROPERTIES.load(is);
-    } catch (IOException e) {
-      throw new RuntimeException("Failed to load application.properties", e);
     }
   }
+
 
   public static String getProperties(String key) {
     return PROPERTIES.getProperty(key);
