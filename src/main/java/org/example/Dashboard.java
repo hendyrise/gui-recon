@@ -2,25 +2,34 @@ package org.example;
 
 import com.intellij.uiDesigner.core.GridConstraints;
 import com.intellij.uiDesigner.core.GridLayoutManager;
+import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
+import java.awt.Dialog;
+import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.Insets;
+import java.awt.event.ActionEvent;
 import java.io.File;
 import java.util.Arrays;
 import java.util.Locale;
+import javax.swing.BorderFactory;
 import javax.swing.DefaultComboBoxModel;
 import javax.swing.DefaultListCellRenderer;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JComponent;
+import javax.swing.JDialog;
 import javax.swing.JFileChooser;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JList;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
+import javax.swing.JProgressBar;
 import javax.swing.SwingConstants;
+import javax.swing.SwingUtilities;
+import javax.swing.SwingWorker;
 import javax.swing.plaf.FontUIResource;
 import javax.swing.text.StyleContext;
 
@@ -30,7 +39,9 @@ public class Dashboard extends JFrame {
   private static final String CHOOSE_FILE_LOCATION = "Choose File Location";
   private static final String COMPARE_RISE_BILLER_AND_PROVIDER = "Compare Rise Biller and Provider";
   private static final String NO_FILE_SELECTED = "No file selected.";
+  private static final String PLEASE_WAIT = "Please Wait";
   private static final String PROVIDER_LIST = "provider.list";
+  private static final String RECONCILING_TRANSACTIONS = "Reconciling transactions...";
   private JPanel MainPanel;
   private JButton chooseLocationButton;
   private JButton providerButton;
@@ -55,7 +66,7 @@ public class Dashboard extends JFrame {
     providerButton.addActionListener(e -> openFileChooser(false));
     chooseLocationButton.addActionListener(e -> chooseOutputDirectory());
     setVisible(true);
-    submitButton.addActionListener(e -> reconciliation(riseFile, providerFile));
+    submitButton.addActionListener(e -> reconciliationAction(riseFile, providerFile));
   }
 
   public static void main(String[] args) {
@@ -224,6 +235,55 @@ public class Dashboard extends JFrame {
         chooseLocationButton.setEnabled(true);
       }
     }
+  }
+
+
+  private JDialog createProgressDialog(String message) {
+    JDialog progressDialog = new JDialog(
+      SwingUtilities.getWindowAncestor(this), PLEASE_WAIT,
+      Dialog.ModalityType.APPLICATION_MODAL
+    );
+
+    JPanel panel = new JPanel(new BorderLayout(10, 10));
+    panel.setBorder(BorderFactory.createEmptyBorder(20, 30, 20, 30));
+
+    JLabel label = new JLabel(message);
+    panel.add(label, BorderLayout.NORTH);
+
+    JProgressBar progressBar = new JProgressBar();
+    progressBar.setIndeterminate(true);
+    progressBar.setPreferredSize(new Dimension(200, 20));
+    panel.add(progressBar, BorderLayout.CENTER);
+
+    progressDialog.add(panel);
+    progressDialog.pack();
+    progressDialog.setLocationRelativeTo(this);
+    submitButton.setEnabled(false);
+
+
+    return progressDialog;
+  }
+
+  // Usage:
+  private void reconciliationAction(File riseFile, File providerFile) {
+    JDialog progressDialog = createProgressDialog(RECONCILING_TRANSACTIONS);
+
+    SwingWorker<Void, Void> worker = new SwingWorker<>() {
+      @Override
+      protected Void doInBackground() throws Exception {
+        reconciliation(riseFile,providerFile);
+        return null;
+      }
+
+      @Override
+      protected void done() {
+        progressDialog.dispose();
+        resetFields();
+      }
+    };
+
+    worker.execute();
+    progressDialog.setVisible(true);
   }
 
   private void reconciliation(File riseFile, File providerFile) {
