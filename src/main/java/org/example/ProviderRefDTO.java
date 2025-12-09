@@ -4,19 +4,19 @@ import java.util.Objects;
 
 public class ProviderRefDTO {
   private String refId;
-  private Integer line;
+  private Integer lineNumber;
 
-  public ProviderRefDTO(String refId, Integer line) {
+  public ProviderRefDTO(String refId, Integer lineNumber) {
     this.refId = refId;
-    this.line = line;
+    this.lineNumber = lineNumber;
   }
 
   public String getRefId() {
     return refId;
   }
 
-  public Integer getLine() {
-    return line;
+  public Integer getLineNumber() {
+    return lineNumber;
   }
 
   @Override
