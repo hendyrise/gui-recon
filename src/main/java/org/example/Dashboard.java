@@ -9,7 +9,6 @@ import java.awt.Dialog;
 import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.Insets;
-import java.awt.event.ActionEvent;
 import java.io.File;
 import java.util.Arrays;
 import java.util.Locale;
