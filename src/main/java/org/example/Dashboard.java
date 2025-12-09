@@ -239,10 +239,8 @@ public class Dashboard extends JFrame {
 
 
   private JDialog createProgressDialog(String message) {
-    JDialog progressDialog = new JDialog(
-      SwingUtilities.getWindowAncestor(this), PLEASE_WAIT,
-      Dialog.ModalityType.APPLICATION_MODAL
-    );
+    JDialog progressDialog = new JDialog(SwingUtilities.getWindowAncestor(this), PLEASE_WAIT,
+      Dialog.ModalityType.APPLICATION_MODAL);
 
     JPanel panel = new JPanel(new BorderLayout(10, 10));
     panel.setBorder(BorderFactory.createEmptyBorder(20, 30, 20, 30));
@@ -260,7 +258,6 @@ public class Dashboard extends JFrame {
     progressDialog.setLocationRelativeTo(this);
     submitButton.setEnabled(false);
 
-
     return progressDialog;
   }
 
@@ -271,7 +268,7 @@ public class Dashboard extends JFrame {
     SwingWorker<Void, Void> worker = new SwingWorker<>() {
       @Override
       protected Void doInBackground() throws Exception {
-        reconciliation(riseFile,providerFile);
+        reconciliation(riseFile, providerFile);
         return null;
       }
 
@@ -301,6 +298,7 @@ public class Dashboard extends JFrame {
     providerButton.setText(CHOOSE_FILE);
     riseButton.setText(CHOOSE_FILE);
     chooseLocationButton.setText(CHOOSE_FILE_LOCATION);
+    providerCombo.setSelectedIndex(0);
     riseFile = null;
     providerFile = null;
   }

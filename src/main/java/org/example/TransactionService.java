@@ -1,7 +1,6 @@
 package org.example;
 
 
-import jakarta.inject.Inject;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
@@ -26,7 +25,7 @@ public class TransactionService {
   private static final String INVALID_HEADER_FOR_FILE = "Invalid Header for file [%s]";
   private static final String PROVIDER_COUNT_HEADER_CONFIG = "provider.%s.header";
   private static final String PROVIDER_PROVIDER_REF_ID_PATH_CONFIG = "provider.%s.provider-ref-id-path";
-  private static final int PROVIDER_REF_PATH = 12;
+  private static final int PROVIDER_REF_PATH = 4;
   private static final String PROVIDER_RUNNING_ID_CONFIG = "provider.%s.running-id-path";
   private static final String PROVIDER_SKIP_HEADER_CONFIG = "provider.%s.skip-header";
   private static final String PROVIDER_STATUS_CONFIG = "provider.%s.status-path";
@@ -34,7 +33,7 @@ public class TransactionService {
   private static final String RESULT_CSV = "-result.csv";
   private static final String RESULT_FILE_FORMAT = "%s\n";
   private static final String RESULT_FILE_PATH = "%s/%s";
-  private static final int RISE_RUNNING_ID_PATH = 8;
+  private static final int RISE_RUNNING_ID_PATH = 3;
   private static final String ZERO_WITH_NO_BREAK_SPACE_FORMAT = "\uFEFF";
 
   public TransactionService() {
@@ -53,22 +52,24 @@ public class TransactionService {
       }
       int lineNumber = 0;
       while ((line = br.readLine()) != null) {
-        final String[] columns = line.trim().split(DELLIMITER);
-        lineNumber += 1;
-        if (!providerConfig.statusSuccess().isBlank()) {
-          final int path = Integer.parseInt(providerConfig.statusPath());
-          final String status = columns[path].trim();
-          if (!providerConfig.statusSuccess().equalsIgnoreCase(status)) {
-            continue;
+        if (!line.isBlank()) {
+          final String[] columns = line.trim().split(DELLIMITER);
+          lineNumber += 1;
+          if (!providerConfig.statusSuccess().isBlank()) {
+            final int path = Integer.parseInt(providerConfig.statusPath());
+            final String status = columns[path].trim();
+            if (!providerConfig.statusSuccess().equalsIgnoreCase(status)) {
+              continue;
+            }
           }
+          String refId = "";
+          if (providerConfig.runningIdPath().isBlank()) {
+            refId = columns[Integer.parseInt(providerConfig.providerRefIdPath())];
+          } else {
+            refId = columns[Integer.parseInt(providerConfig.runningIdPath())];
+          }
+          providerRefList.add(new ProviderRefDTO(refId.trim(), lineNumber));
         }
-        String refId = "";
-        if (providerConfig.runningIdPath().isBlank()) {
-          refId = columns[Integer.parseInt(providerConfig.providerRefIdPath())];
-        } else {
-          refId = columns[Integer.parseInt(providerConfig.runningIdPath())];
-        }
-        providerRefList.add(new ProviderRefDTO(refId.trim(), lineNumber));
       }
       return providerRefList;
     } catch (IOException e) {
@@ -128,7 +129,8 @@ public class TransactionService {
       String.format(RESULT_FILE_PATH, fileLocation, providerFile.getName().replace(CSV, RESULT_CSV)));
 
     try (BufferedReader br = new BufferedReader(new FileReader(providerFile))) {
-      final Set<Integer> resultLine = resultRefList.stream().map(ProviderRefDTO::getLineNumber).collect(Collectors.toSet());
+      final Set<Integer> resultLine = resultRefList.stream().map(ProviderRefDTO::getLineNumber)
+        .collect(Collectors.toSet());
       String line;
       for (int i = 0; i < skipHeader; i++) {
         br.readLine();
