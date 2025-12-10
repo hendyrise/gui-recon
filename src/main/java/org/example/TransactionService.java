@@ -117,18 +117,20 @@ public class TransactionService {
       final Set<ProviderRefDTO> providerRefList = providerFutureRef.join();
       final Set<ProviderRefDTO> resultRefList = new HashSet<>(CollectionUtils.removeAll(providerRefList, riseRefList));
 
-      return generateResultFile(resultRefList, fileLocation, providerFile, providerConfig.skipHeader());
+      return compareFile(resultRefList, fileLocation, providerFile, providerConfig.skipHeader(),
+        providerConfig.header());
     } catch (Exception e) {
       return String.format(FAILED_TO_COMPARE_FILE_AND_FILE, riseFile.getName(), providerFile.getName());
     }
   }
 
-  private String generateResultFile(Set<ProviderRefDTO> resultRefList, String fileLocation, File providerFile,
-    int skipHeader) {
+  private String compareFile(Set<ProviderRefDTO> resultRefList, String fileLocation, File providerFile, int skipHeader,
+    String header) {
     final File resultFile = new File(
       String.format(RESULT_FILE_PATH, fileLocation, providerFile.getName().replace(CSV, RESULT_CSV)));
-
     try (BufferedReader br = new BufferedReader(new FileReader(providerFile))) {
+      Files.writeString(resultFile.toPath(), String.format(RESULT_FILE_FORMAT, header.replace(",", DELLIMITER)),
+        StandardOpenOption.CREATE, StandardOpenOption.APPEND);
       final Set<Integer> resultLine = resultRefList.stream().map(ProviderRefDTO::getLineNumber)
         .collect(Collectors.toSet());
       String line;
