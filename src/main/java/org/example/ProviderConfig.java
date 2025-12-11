@@ -4,6 +4,6 @@ public record ProviderConfig(String runningIdPath, String statusPath,
    String statusSuccess,
    int skipHeader,
    String header,
-   String providerRefIdPath) {
+   String providerRefIdPath, String pricePath,String feePath ) {
 
 }

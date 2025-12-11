@@ -5,6 +5,7 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
@@ -25,7 +26,11 @@ public class TransactionService {
   private static final String INVALID_HEADER_FOR_FILE = "Invalid Header for file [%s]";
   private static final String PROVIDER_COUNT_HEADER_CONFIG = "provider.%s.header";
   private static final String PROVIDER_PROVIDER_REF_ID_PATH_CONFIG = "provider.%s.provider-ref-id-path";
+  private static final String PROVIDER_PRICE_PATH_CONFIG = "provider.%s.price";
+  private static final String PROVIDER_FEE_PATH_CONFIG = "provider.%s.fee";
   private static final int PROVIDER_REF_PATH = 4;
+  private static final int PRICE_PATH = 5;
+  private static final int FEE_PATH = 6;
   private static final String PROVIDER_RUNNING_ID_CONFIG = "provider.%s.running-id-path";
   private static final String PROVIDER_SKIP_HEADER_CONFIG = "provider.%s.skip-header";
   private static final String PROVIDER_STATUS_CONFIG = "provider.%s.status-path";
@@ -39,7 +44,7 @@ public class TransactionService {
   public TransactionService() {
   }
 
-  private Set<ProviderRefDTO> extractTransactionIdFromProvider(File providerFile, ProviderConfig providerConfig) {
+  private ResultFileDto extractTransactionIdFromProvider(File providerFile, ProviderConfig providerConfig) {
     final Set<ProviderRefDTO> providerRefList = new HashSet<>();
     try (BufferedReader br = new BufferedReader(new FileReader(providerFile))) {
       String line;
@@ -51,6 +56,7 @@ public class TransactionService {
         throw new IOException(String.format(INVALID_HEADER_FOR_FILE, providerFile.getName()));
       }
       int lineNumber = 0;
+      BigDecimal totalPrice = BigDecimal.ZERO;
       while ((line = br.readLine()) != null) {
         if (!line.isBlank()) {
           final String[] columns = line.trim().split(DELLIMITER);
@@ -68,25 +74,29 @@ public class TransactionService {
           } else {
             refId = columns[Integer.parseInt(providerConfig.runningIdPath())];
           }
+          totalPrice = totalPrice.add(new BigDecimal(columns[Integer.parseInt(providerConfig.pricePath())]))
+            .add(new BigDecimal(columns[Integer.parseInt(providerConfig.feePath())]));
           providerRefList.add(new ProviderRefDTO(refId.trim(), lineNumber));
         }
       }
-      return providerRefList;
+      return new ResultFileDto(totalPrice, providerRefList);
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
   }
 
-  private Set<ProviderRefDTO> extractTransactionIdFromRise(File file, int columnIndex) {
-    Set<ProviderRefDTO> ids = new HashSet<>();
+  private ResultFileDto extractTransactionIdFromRise(File file, int refIndex) {
+    Set<ProviderRefDTO> refList = new HashSet<>();
     try (BufferedReader br = new BufferedReader(new FileReader(file))) {
       String line;
       br.readLine();
+      BigDecimal totalPrice = BigDecimal.ZERO;
       while ((line = br.readLine()) != null) {
-        String[] parts = line.trim().split(DELLIMITER);
-        ids.add(new ProviderRefDTO(parts[columnIndex].trim(), null));
+        final String[] parts = line.trim().split(DELLIMITER);
+        totalPrice = totalPrice.add(new BigDecimal(parts[PRICE_PATH])).add(new BigDecimal(parts[FEE_PATH]));
+        refList.add(new ProviderRefDTO(parts[refIndex].trim(), null));
       }
-      return ids;
+      return new ResultFileDto(totalPrice, refList);
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
@@ -102,33 +112,41 @@ public class TransactionService {
       String.format(PROVIDER_STATUS_MESSAGE_CONFIG, selectedProvider));
     final String providerRefIdPath = AppConfig.getProperties(
       String.format(PROVIDER_PROVIDER_REF_ID_PATH_CONFIG, selectedProvider));
-    return new ProviderConfig(runningIdPath, statusPath, statusMessage, skipHeader, header, providerRefIdPath);
+    final String pricePath = AppConfig.getProperties(String.format(PROVIDER_PRICE_PATH_CONFIG, selectedProvider));
+    final String feePath = AppConfig.getProperties(String.format(PROVIDER_FEE_PATH_CONFIG, selectedProvider));
+    return new ProviderConfig(runningIdPath, statusPath, statusMessage, skipHeader, header, providerRefIdPath,
+      pricePath, feePath);
   }
 
-  public String generateResultFile(File providerFile, File riseFile, String selectedProvider, String fileLocation) {
+  public CompareResultDTO generateResultFile(File providerFile, File riseFile, String selectedProvider,
+    String fileLocation) {
     final ProviderConfig providerConfig = generateProviderConfig(selectedProvider);
     try {
       final ForkJoinPool pool = new ForkJoinPool();
-      final CompletableFuture<Set<ProviderRefDTO>> riseFutureRef = CompletableFuture.supplyAsync(
+      final CompletableFuture<ResultFileDto> riseFutureRef = CompletableFuture.supplyAsync(
         () -> extractTransactionIdFromRise(riseFile, validateRefPath(providerConfig)), pool);
-      final CompletableFuture<Set<ProviderRefDTO>> providerFutureRef = CompletableFuture.supplyAsync(
+      final CompletableFuture<ResultFileDto> providerFutureRef = CompletableFuture.supplyAsync(
         () -> extractTransactionIdFromProvider(providerFile, providerConfig), pool);
-      final Set<ProviderRefDTO> riseRefList = riseFutureRef.join();
-      final Set<ProviderRefDTO> providerRefList = providerFutureRef.join();
-      final Set<ProviderRefDTO> resultRefList = new HashSet<>(CollectionUtils.removeAll(providerRefList, riseRefList));
-
-      return generateResultFile(resultRefList, fileLocation, providerFile, providerConfig.skipHeader());
+      final ResultFileDto riseRefList = riseFutureRef.join();
+      final ResultFileDto providerRefList = providerFutureRef.join();
+      final Set<ProviderRefDTO> resultRefList = new HashSet<>(
+        CollectionUtils.removeAll(providerRefList.refList(), riseRefList.refList()));
+      final String message = compareFile(resultRefList, fileLocation, providerFile, providerConfig.skipHeader(),
+        providerConfig.header());
+      return new CompareResultDTO(riseRefList.totalPrice(), providerRefList.totalPrice(), message);
     } catch (Exception e) {
-      return String.format(FAILED_TO_COMPARE_FILE_AND_FILE, riseFile.getName(), providerFile.getName());
+      return new CompareResultDTO(BigDecimal.ZERO, BigDecimal.ZERO,
+        String.format(FAILED_TO_COMPARE_FILE_AND_FILE, riseFile.getName(), providerFile.getName()));
     }
   }
 
-  private String generateResultFile(Set<ProviderRefDTO> resultRefList, String fileLocation, File providerFile,
-    int skipHeader) {
+  private String compareFile(Set<ProviderRefDTO> resultRefList, String fileLocation, File providerFile, int skipHeader,
+    String header) {
     final File resultFile = new File(
       String.format(RESULT_FILE_PATH, fileLocation, providerFile.getName().replace(CSV, RESULT_CSV)));
-
     try (BufferedReader br = new BufferedReader(new FileReader(providerFile))) {
+      Files.writeString(resultFile.toPath(), String.format(RESULT_FILE_FORMAT, header.replace(",", DELLIMITER)),
+        StandardOpenOption.CREATE, StandardOpenOption.APPEND);
       final Set<Integer> resultLine = resultRefList.stream().map(ProviderRefDTO::getLineNumber)
         .collect(Collectors.toSet());
       String line;
