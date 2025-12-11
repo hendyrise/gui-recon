@@ -10,6 +10,7 @@ import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.Insets;
 import java.io.File;
+import java.text.NumberFormat;
 import java.util.Arrays;
 import java.util.Locale;
 import javax.swing.BorderFactory;
@@ -26,6 +27,7 @@ import javax.swing.JList;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JProgressBar;
+import javax.swing.JTextField;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 import javax.swing.SwingWorker;
@@ -41,6 +43,10 @@ public class Dashboard extends JFrame {
   private static final String PLEASE_WAIT = "Please Wait";
   private static final String PROVIDER_LIST = "provider.list";
   private static final String RECONCILING_TRANSACTIONS = "Reconciling transactions...";
+  private static final String RP = "Rp. ";
+  private static final String RP_0 = "Rp.0";
+  private static final Locale IDN = Locale.forLanguageTag("id-ID");
+  private static final NumberFormat CURRENCY_FORMATTER = NumberFormat.getCurrencyInstance(IDN);
   private JPanel MainPanel;
   private JButton chooseLocationButton;
   private JButton providerButton;
@@ -49,6 +55,9 @@ public class Dashboard extends JFrame {
   private JButton riseButton;
   private File riseFile;
   private JButton submitButton;
+  private JButton resetButton;
+  private JTextField riseTotalPrice;
+  private JTextField providerTotalPrice;
 
   public Dashboard() {
     makeComboBoxLabelCenter();
@@ -56,16 +65,19 @@ public class Dashboard extends JFrame {
     setContentPane(MainPanel);
     setTitle(COMPARE_RISE_BILLER_AND_PROVIDER);
     setDefaultCloseOperation(EXIT_ON_CLOSE);
-    setSize(600, 300);
+    setSize(400, 300);
     setLocationRelativeTo(null);
     riseButton.addActionListener(e -> openFileChooser(true));
     providerButton.setEnabled(false);
     chooseLocationButton.setEnabled(false);
     submitButton.setEnabled(false);
+    providerTotalPrice.setEditable(false);
+    riseTotalPrice.setEditable(false);
     providerButton.addActionListener(e -> openFileChooser(false));
     chooseLocationButton.addActionListener(e -> chooseOutputDirectory());
     setVisible(true);
     submitButton.addActionListener(e -> reconciliationAction(riseFile, providerFile));
+    resetButton.addActionListener(e -> resetFields());
   }
 
   public static void main(String[] args) {
@@ -87,7 +99,7 @@ public class Dashboard extends JFrame {
    */
   private void $$$setupUI$$$() {
     MainPanel = new JPanel();
-    MainPanel.setLayout(new GridLayoutManager(5, 9, new Insets(0, 0, 0, 0), -1, -1));
+    MainPanel.setLayout(new GridLayoutManager(7, 9, new Insets(0, 0, 0, 0), -1, -1));
     MainPanel.setBackground(new Color(-516));
     final JLabel label1 = new JLabel();
     label1.setHorizontalTextPosition(0);
@@ -135,7 +147,7 @@ public class Dashboard extends JFrame {
     submitButton.setHorizontalTextPosition(0);
     submitButton.setText("Submit");
     MainPanel.add(submitButton,
-      new GridConstraints(4, 4, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL,
+      new GridConstraints(6, 4, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL,
         GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED,
         null, null, null, 0, false));
     final JLabel label4 = new JLabel();
@@ -151,6 +163,33 @@ public class Dashboard extends JFrame {
     label6.setText("");
     MainPanel.add(label6, new GridConstraints(0, 5, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE,
       GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+    resetButton = new JButton();
+    resetButton.setText("RESET");
+    MainPanel.add(resetButton,
+      new GridConstraints(6, 1, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL,
+        GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+    final JLabel label7 = new JLabel();
+    label7.setText("Rise Total Price");
+    MainPanel.add(label7, new GridConstraints(4, 1, 1, 3, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE,
+      GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+    final JLabel label8 = new JLabel();
+    label8.setText("Provider Total Price");
+    MainPanel.add(label8, new GridConstraints(5, 1, 1, 3, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE,
+      GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+    riseTotalPrice = new JTextField();
+    riseTotalPrice.setBackground(new Color(-196609));
+    riseTotalPrice.setText("Rp. 0");
+    MainPanel.add(riseTotalPrice,
+      new GridConstraints(4, 4, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_HORIZONTAL,
+        GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, new Dimension(150, -1), null, 0,
+        false));
+    providerTotalPrice = new JTextField();
+    providerTotalPrice.setBackground(new Color(-196609));
+    providerTotalPrice.setText("Rp. 0");
+    MainPanel.add(providerTotalPrice,
+      new GridConstraints(5, 4, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_HORIZONTAL,
+        GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, new Dimension(150, -1), null, 0,
+        false));
   }
 
   /**
@@ -260,7 +299,6 @@ public class Dashboard extends JFrame {
     return progressDialog;
   }
 
-  // Usage:
   private void reconciliationAction(File riseFile, File providerFile) {
     JDialog progressDialog = createProgressDialog(RECONCILING_TRANSACTIONS);
 
@@ -274,7 +312,6 @@ public class Dashboard extends JFrame {
       @Override
       protected void done() {
         progressDialog.dispose();
-        resetFields();
       }
     };
 
@@ -284,10 +321,15 @@ public class Dashboard extends JFrame {
 
   private void reconciliation(File riseFile, File providerFile) {
     final TransactionService transactionService = new TransactionService();
-    final String reconStatusMessage = transactionService.generateResultFile(providerFile, riseFile,
+    final CompareResultDTO compareResult = transactionService.generateResultFile(providerFile, riseFile,
       (String) providerCombo.getSelectedItem(), chooseLocationButton.getText());
-    JOptionPane.showMessageDialog(this, reconStatusMessage);
-    resetFields();
+    CURRENCY_FORMATTER.setMaximumFractionDigits(0);
+    final String risePrice = CURRENCY_FORMATTER.format(compareResult.riseTotalPrice()).replace("Rp", RP);
+    final String providerPrice = CURRENCY_FORMATTER.format(compareResult.providerTotalPrice()).replace("Rp", RP);
+    riseTotalPrice.setText(risePrice);
+    providerTotalPrice.setText(providerPrice);
+    submitButton.setEnabled(false);
+    JOptionPane.showMessageDialog(this, compareResult.message());
   }
 
   private void resetFields() {
@@ -300,6 +342,8 @@ public class Dashboard extends JFrame {
     providerCombo.setSelectedIndex(0);
     riseFile = null;
     providerFile = null;
+    providerTotalPrice.setText(RP_0);
+    riseTotalPrice.setText(RP_0);
   }
 
 }
