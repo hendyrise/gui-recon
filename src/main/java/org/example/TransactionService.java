@@ -74,8 +74,11 @@ public class TransactionService {
           } else {
             refId = columns[Integer.parseInt(providerConfig.runningIdPath())];
           }
-          totalPrice = totalPrice.add(new BigDecimal(columns[Integer.parseInt(providerConfig.pricePath())]))
-            .add(new BigDecimal(columns[Integer.parseInt(providerConfig.feePath())]));
+          final BigDecimal fee =
+            !providerConfig.feePath().isBlank() ? new BigDecimal(columns[Integer.parseInt(providerConfig.feePath())])
+              : BigDecimal.ZERO;
+          final BigDecimal price = validatePrice(columns[Integer.parseInt(providerConfig.pricePath())]);
+          totalPrice = totalPrice.add(price).add(fee);
           providerRefList.add(new ProviderRefDTO(refId.trim(), lineNumber));
         }
       }
@@ -83,6 +86,14 @@ public class TransactionService {
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
+  }
+
+  private BigDecimal validatePrice(String price) {
+    String finalPrice = price;
+    if (price.contains("Rp") || price.contains(".") || price.contains("-")) {
+      finalPrice = price.replace("Rp", "").replace(".", "").replace("-", "");
+    }
+    return new BigDecimal(finalPrice);
   }
 
   private ResultFileDto extractTransactionIdFromRise(File file, int refIndex) {
