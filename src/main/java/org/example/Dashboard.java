@@ -27,6 +27,7 @@ import javax.swing.JList;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JProgressBar;
+import javax.swing.JTabbedPane;
 import javax.swing.JTextField;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
@@ -38,46 +39,81 @@ public class Dashboard extends JFrame {
 
   private static final String CHOOSE_FILE = "Choose File";
   private static final String CHOOSE_FILE_LOCATION = "Choose File Location";
-  private static final String COMPARE_RISE_BILLER_AND_PROVIDER = "Compare Rise Biller and Provider";
+  private static final String COMPARE_RISE_BILLER_AND_PROVIDER = "Compare Transaction Data";
   private static final String NO_FILE_SELECTED = "No file selected.";
   private static final String PLEASE_WAIT = "Please Wait";
   private static final String PROVIDER_LIST = "provider.list";
+  private static final String CLIENT_LIST = "client.list";
   private static final String RECONCILING_TRANSACTIONS = "Reconciling transactions...";
   private static final String RP = "Rp. ";
   private static final String RP_0 = "Rp.0";
   private static final Locale IDN = Locale.forLanguageTag("id-ID");
   private static final NumberFormat CURRENCY_FORMATTER = NumberFormat.getCurrencyInstance(IDN);
   private JPanel MainPanel;
+  private JTabbedPane tabbedPane1;
+  private JPanel tab1;
   private JButton chooseLocationButton;
   private JButton providerButton;
-  private JComboBox<String> providerCombo;
-  private File providerFile;
+  private JComboBox<String> providerClientCombo;
+  private File secondFile;
   private JButton riseButton;
-  private File riseFile;
+  private File firstFile;
   private JButton submitButton;
   private JButton resetButton;
   private JTextField riseTotalPrice;
   private JTextField providerTotalPrice;
+  private JComboBox<String> providerClientCombo2;
+  private JButton clientButton2;
+  private JButton riseButton2;
+  private JButton chooseLocationButton2;
+  private JButton submitButton2;
+  private JButton resetButton2;
+  private JTextField riseTotalPrice2;
+  private JTextField clientTotalPrice2;
+
+  private int currentTab = 0;
 
   public Dashboard() {
+    initializeTab0();
+    initializeTab1();
+    tabbedPane1.addChangeListener(e -> {
+      currentTab = ((JTabbedPane) e.getSource()).getSelectedIndex();
+      generateProviderOrClientConfig();
+    });
+    generateProviderOrClientConfig();
     makeComboBoxLabelCenter();
-    generateProviderConfig();
     setContentPane(MainPanel);
     setTitle(COMPARE_RISE_BILLER_AND_PROVIDER);
     setDefaultCloseOperation(EXIT_ON_CLOSE);
-    setSize(400, 300);
+    setSize(500, 350);
     setLocationRelativeTo(null);
-    riseButton.addActionListener(e -> openFileChooser(true));
+    setVisible(true);
+  }
+
+  private void initializeTab0() {
     providerButton.setEnabled(false);
     chooseLocationButton.setEnabled(false);
     submitButton.setEnabled(false);
     providerTotalPrice.setEditable(false);
     riseTotalPrice.setEditable(false);
+    riseButton.addActionListener(e -> openFileChooser(true));
     providerButton.addActionListener(e -> openFileChooser(false));
     chooseLocationButton.addActionListener(e -> chooseOutputDirectory());
-    setVisible(true);
-    submitButton.addActionListener(e -> reconciliationAction(riseFile, providerFile));
+    submitButton.addActionListener(e -> reconciliationAction(firstFile, secondFile));
     resetButton.addActionListener(e -> resetFields());
+  }
+
+  private void initializeTab1() {
+    riseButton2.setEnabled(false);
+    chooseLocationButton2.setEnabled(false);
+    submitButton2.setEnabled(false);
+    riseTotalPrice2.setEditable(false);
+    clientTotalPrice2.setEditable(false);
+    clientButton2.addActionListener(e -> openFileChooser(true));
+    riseButton2.addActionListener(e -> openFileChooser(false));
+    chooseLocationButton2.addActionListener(e -> chooseOutputDirectory());
+    submitButton2.addActionListener(e -> reconciliationAction(firstFile, secondFile));
+    resetButton2.addActionListener(e -> resetFields2());
   }
 
   public static void main(String[] args) {
@@ -99,97 +135,186 @@ public class Dashboard extends JFrame {
    */
   private void $$$setupUI$$$() {
     MainPanel = new JPanel();
-    MainPanel.setLayout(new GridLayoutManager(7, 9, new Insets(0, 0, 0, 0), -1, -1));
+    MainPanel.setLayout(new GridLayoutManager(1, 4, new Insets(0, 0, 0, 0), -1, -1));
     MainPanel.setBackground(new Color(-516));
+    tabbedPane1 = new JTabbedPane();
+    tabbedPane1.setBackground(new Color(-196609));
+    MainPanel.add(tabbedPane1, new GridConstraints(0, 0, 1, 4, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH,
+      GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW,
+      GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, new Dimension(200, 200), null,
+      0, false));
+    final JPanel panel1 = new JPanel();
+    panel1.setLayout(new GridLayoutManager(7, 8, new Insets(0, 0, 0, 0), -1, -1));
+    panel1.setBackground(new Color(-196609));
+    panel1.setForeground(new Color(-516));
+    tabbedPane1.addTab("recon provider", panel1);
     final JLabel label1 = new JLabel();
-    label1.setHorizontalTextPosition(0);
-    label1.setText("File Provider");
-    MainPanel.add(label1, new GridConstraints(2, 1, 1, 3, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE,
+    label1.setText("Result File Location");
+    panel1.add(label1, new GridConstraints(3, 0, 1, 4, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE,
       GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
-    final JLabel label2 = new JLabel();
-    label2.setText("Provider");
-    MainPanel.add(label2, new GridConstraints(0, 1, 1, 3, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE,
-      GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
-    final JLabel label3 = new JLabel();
-    label3.setText("Result File Location");
-    MainPanel.add(label3, new GridConstraints(3, 1, 1, 3, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE,
-      GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
-    providerButton = new JButton();
-    providerButton.setText("Choose File");
-    MainPanel.add(providerButton,
-      new GridConstraints(2, 4, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL,
-        GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED,
-        null, null, null, 0, false));
-    providerCombo = new JComboBox();
-    Font providerComboFont = this.$$$getFont$$$(null, -1, 12, providerCombo.getFont());
-    if (providerComboFont != null) {
-      providerCombo.setFont(providerComboFont);
-    }
-    final DefaultComboBoxModel defaultComboBoxModel1 = new DefaultComboBoxModel();
-    providerCombo.setModel(defaultComboBoxModel1);
-    MainPanel.add(providerCombo,
-      new GridConstraints(0, 4, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_HORIZONTAL,
-        GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
-    riseButton = new JButton();
-    riseButton.setHideActionText(false);
-    riseButton.setText("Chose File");
-    MainPanel.add(riseButton,
-      new GridConstraints(1, 4, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL,
-        GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED,
-        null, null, null, 0, false));
     chooseLocationButton = new JButton();
     chooseLocationButton.setText("Choose File Location");
-    MainPanel.add(chooseLocationButton,
-      new GridConstraints(3, 4, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL,
+    panel1.add(chooseLocationButton,
+      new GridConstraints(3, 4, 1, 4, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL,
         GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED,
         null, null, null, 0, false));
     submitButton = new JButton();
     submitButton.setHorizontalTextPosition(0);
     submitButton.setText("Submit");
-    MainPanel.add(submitButton,
-      new GridConstraints(6, 4, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL,
+    panel1.add(submitButton,
+      new GridConstraints(6, 4, 1, 4, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL,
         GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED,
         null, null, null, 0, false));
-    final JLabel label4 = new JLabel();
-    label4.setBackground(new Color(-16777216));
-    label4.setText("File Rise");
-    MainPanel.add(label4, new GridConstraints(1, 1, 1, 3, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE,
-      GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
-    final JLabel label5 = new JLabel();
-    label5.setText("");
-    MainPanel.add(label5, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE,
-      GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
-    final JLabel label6 = new JLabel();
-    label6.setText("");
-    MainPanel.add(label6, new GridConstraints(0, 5, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE,
-      GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
     resetButton = new JButton();
     resetButton.setText("RESET");
-    MainPanel.add(resetButton,
-      new GridConstraints(6, 1, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL,
+    panel1.add(resetButton,
+      new GridConstraints(6, 0, 1, 4, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL,
         GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
-    final JLabel label7 = new JLabel();
-    label7.setText("Rise Total Price");
-    MainPanel.add(label7, new GridConstraints(4, 1, 1, 3, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE,
+    final JLabel label2 = new JLabel();
+    label2.setText("Provider");
+    panel1.add(label2, new GridConstraints(0, 0, 1, 4, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE,
       GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
-    final JLabel label8 = new JLabel();
-    label8.setText("Provider Total Price");
-    MainPanel.add(label8, new GridConstraints(5, 1, 1, 3, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE,
+    providerClientCombo = new JComboBox();
+    Font providerClientComboFont = this.$$$getFont$$$(null, -1, 12, providerClientCombo.getFont());
+    if (providerClientComboFont != null) {
+      providerClientCombo.setFont(providerClientComboFont);
+    }
+    final DefaultComboBoxModel defaultComboBoxModel1 = new DefaultComboBoxModel();
+    providerClientCombo.setModel(defaultComboBoxModel1);
+    panel1.add(providerClientCombo,
+      new GridConstraints(0, 4, 1, 4, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_HORIZONTAL,
+        GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+    final JLabel label3 = new JLabel();
+    label3.setText("Rise Total Price");
+    panel1.add(label3, new GridConstraints(4, 0, 1, 4, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE,
+      GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+    final JLabel label4 = new JLabel();
+    label4.setText("Provider Total Price");
+    panel1.add(label4, new GridConstraints(5, 0, 1, 4, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE,
       GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
     riseTotalPrice = new JTextField();
     riseTotalPrice.setBackground(new Color(-196609));
     riseTotalPrice.setText("Rp. 0");
-    MainPanel.add(riseTotalPrice,
-      new GridConstraints(4, 4, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_HORIZONTAL,
+    panel1.add(riseTotalPrice,
+      new GridConstraints(4, 4, 1, 4, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_HORIZONTAL,
         GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, new Dimension(150, -1), null, 0,
         false));
     providerTotalPrice = new JTextField();
     providerTotalPrice.setBackground(new Color(-196609));
     providerTotalPrice.setText("Rp. 0");
-    MainPanel.add(providerTotalPrice,
-      new GridConstraints(5, 4, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_HORIZONTAL,
+    panel1.add(providerTotalPrice,
+      new GridConstraints(5, 4, 1, 4, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_HORIZONTAL,
         GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, new Dimension(150, -1), null, 0,
         false));
+    final JLabel label5 = new JLabel();
+    label5.setHorizontalTextPosition(0);
+    label5.setText("File Provider");
+    panel1.add(label5, new GridConstraints(2, 0, 1, 4, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE,
+      GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+    riseButton = new JButton();
+    riseButton.setHideActionText(false);
+    riseButton.setText("Choose File");
+    panel1.add(riseButton,
+      new GridConstraints(1, 4, 1, 4, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL,
+        GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED,
+        null, null, null, 0, false));
+    providerButton = new JButton();
+    providerButton.setText("Choose File");
+    panel1.add(providerButton,
+      new GridConstraints(2, 4, 1, 4, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL,
+        GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED,
+        null, null, null, 0, false));
+    final JLabel label6 = new JLabel();
+    label6.setBackground(new Color(-16777216));
+    label6.setText("File Rise");
+    panel1.add(label6, new GridConstraints(1, 0, 1, 4, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE,
+      GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+    final JPanel panel2 = new JPanel();
+    panel2.setLayout(new GridLayoutManager(7, 2, new Insets(0, 0, 0, 0), -1, -1));
+    panel2.setBackground(new Color(-196609));
+    panel2.setForeground(new Color(-16777216));
+    tabbedPane1.addTab("recon client", panel2);
+    final JLabel label7 = new JLabel();
+    label7.setText("Client");
+    panel2.add(label7, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE,
+      GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+    providerClientCombo2 = new JComboBox();
+    Font providerClientCombo2Font = this.$$$getFont$$$(null, -1, 12, providerClientCombo2.getFont());
+    if (providerClientCombo2Font != null) {
+      providerClientCombo2.setFont(providerClientCombo2Font);
+    }
+    final DefaultComboBoxModel defaultComboBoxModel2 = new DefaultComboBoxModel();
+    providerClientCombo2.setModel(defaultComboBoxModel2);
+    panel2.add(providerClientCombo2,
+      new GridConstraints(0, 1, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_HORIZONTAL,
+        GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+    final JLabel label8 = new JLabel();
+    label8.setHorizontalTextPosition(0);
+    label8.setText("File Client");
+    panel2.add(label8, new GridConstraints(1, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE,
+      GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+    clientButton2 = new JButton();
+    clientButton2.setText("Choose File");
+    panel2.add(clientButton2,
+      new GridConstraints(1, 1, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL,
+        GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED,
+        null, null, null, 0, false));
+    final JLabel label9 = new JLabel();
+    label9.setBackground(new Color(-16777216));
+    label9.setText("File Rise");
+    panel2.add(label9, new GridConstraints(2, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE,
+      GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+    riseButton2 = new JButton();
+    riseButton2.setHideActionText(false);
+    riseButton2.setText("Choose File");
+    panel2.add(riseButton2,
+      new GridConstraints(2, 1, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL,
+        GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED,
+        null, null, null, 0, false));
+    final JLabel label10 = new JLabel();
+    label10.setText("Result File Location");
+    panel2.add(label10, new GridConstraints(3, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE,
+      GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+    chooseLocationButton2 = new JButton();
+    chooseLocationButton2.setText("Choose File Location");
+    panel2.add(chooseLocationButton2,
+      new GridConstraints(3, 1, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL,
+        GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED,
+        null, null, null, 0, false));
+    riseTotalPrice2 = new JTextField();
+    riseTotalPrice2.setBackground(new Color(-196609));
+    riseTotalPrice2.setText("Rp. 0");
+    panel2.add(riseTotalPrice2,
+      new GridConstraints(4, 1, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_HORIZONTAL,
+        GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, new Dimension(150, -1), null, 0,
+        false));
+    final JLabel label11 = new JLabel();
+    label11.setText("Rise Total Price");
+    panel2.add(label11, new GridConstraints(4, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE,
+      GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+    final JLabel label12 = new JLabel();
+    label12.setText("Client Total Price");
+    panel2.add(label12, new GridConstraints(5, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE,
+      GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+    clientTotalPrice2 = new JTextField();
+    clientTotalPrice2.setBackground(new Color(-196609));
+    clientTotalPrice2.setText("Rp. 0");
+    panel2.add(clientTotalPrice2,
+      new GridConstraints(5, 1, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_HORIZONTAL,
+        GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, new Dimension(150, -1), null, 0,
+        false));
+    submitButton2 = new JButton();
+    submitButton2.setHorizontalTextPosition(0);
+    submitButton2.setText("Submit");
+    panel2.add(submitButton2,
+      new GridConstraints(6, 1, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL,
+        GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED,
+        null, null, null, 0, false));
+    resetButton2 = new JButton();
+    resetButton2.setText("RESET");
+    panel2.add(resetButton2,
+      new GridConstraints(6, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL,
+        GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
   }
 
   /**
@@ -230,21 +355,48 @@ public class Dashboard extends JFrame {
     chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
     final int result = chooser.showSaveDialog(this);
     if (result == JFileChooser.APPROVE_OPTION) {
-      chooseLocationButton.setText(chooser.getSelectedFile().getAbsolutePath());
-      submitButton.setEnabled(true);
+      if (currentTab == 0) {
+        chooseLocationButton.setText(chooser.getSelectedFile().getAbsolutePath());
+        submitButton.setEnabled(true);
+      } else {
+        chooseLocationButton2.setText(chooser.getSelectedFile().getAbsolutePath());
+        submitButton2.setEnabled(true);
+      }
     }
   }
 
-  private void generateProviderConfig() {
-    final String providerList = AppConfig.getProperties(PROVIDER_LIST);
-    providerCombo.addItem("---- choose provider ----");
-    Arrays.stream(providerList.split(",")).forEach(provider -> {
-      providerCombo.addItem(provider);
-    });
+
+  private void generateProviderOrClientConfig() {
+    if (currentTab == 0) {
+      if (providerClientCombo.getItemCount() == 0) {
+        final String providerOrClientList = AppConfig.getProperties(PROVIDER_LIST);
+        providerClientCombo.addItem("---- Choose Provider ----");
+        Arrays.stream(providerOrClientList.split(",")).forEach(data -> {
+          providerClientCombo.addItem(data);
+        });
+      }
+    } else {
+      if (providerClientCombo2.getItemCount() == 0) {
+        final String providerOrClientList = AppConfig.getProperties(CLIENT_LIST);
+        providerClientCombo2.addItem("---- Choose Client ----");
+        Arrays.stream(providerOrClientList.split(",")).forEach(data -> {
+          providerClientCombo2.addItem(data);
+        });
+      }
+    }
   }
 
   private void makeComboBoxLabelCenter() {
-    providerCombo.setRenderer(new DefaultListCellRenderer() {
+    providerClientCombo.setRenderer(new DefaultListCellRenderer() {
+      @Override
+      public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected,
+        boolean cellHasFocus) {
+        JLabel label = (JLabel) super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+        label.setHorizontalAlignment(SwingConstants.CENTER);
+        return label;
+      }
+    });
+    providerClientCombo2.setRenderer(new DefaultListCellRenderer() {
       @Override
       public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected,
         boolean cellHasFocus) {
@@ -264,13 +416,23 @@ public class Dashboard extends JFrame {
         return;
       }
       if (isRise) {
-        riseFile = selected;
-        riseButton.setText(selected.getName());
-        providerButton.setEnabled(true);
+        firstFile = selected;
+        if (currentTab == 0) {
+          riseButton.setText(selected.getName());
+          providerButton.setEnabled(true);
+        } else {
+          clientButton2.setText(selected.getName());
+          riseButton2.setEnabled(true);
+        }
       } else {
-        providerFile = selected;
-        providerButton.setText(selected.getName());
-        chooseLocationButton.setEnabled(true);
+        secondFile = selected;
+        if (currentTab == 0) {
+          providerButton.setText(selected.getName());
+          chooseLocationButton.setEnabled(true);
+        } else {
+          riseButton2.setText(selected.getName());
+          chooseLocationButton2.setEnabled(true);
+        }
       }
     }
   }
@@ -294,18 +456,22 @@ public class Dashboard extends JFrame {
     progressDialog.add(panel);
     progressDialog.pack();
     progressDialog.setLocationRelativeTo(this);
-    submitButton.setEnabled(false);
+    if (currentTab == 0) {
+      submitButton.setEnabled(false);
+    } else {
+      submitButton2.setEnabled(false);
+    }
 
     return progressDialog;
   }
 
-  private void reconciliationAction(File riseFile, File providerFile) {
-    JDialog progressDialog = createProgressDialog(RECONCILING_TRANSACTIONS);
+  private void reconciliationAction(File firstFile, File secondFile) {
+    final JDialog progressDialog = createProgressDialog(RECONCILING_TRANSACTIONS);
 
-    SwingWorker<Void, Void> worker = new SwingWorker<>() {
+    final SwingWorker<Void, Void> worker = new SwingWorker<>() {
       @Override
       protected Void doInBackground() throws Exception {
-        reconciliation(riseFile, providerFile);
+        reconciliation(firstFile, secondFile);
         return null;
       }
 
@@ -319,16 +485,28 @@ public class Dashboard extends JFrame {
     progressDialog.setVisible(true);
   }
 
-  private void reconciliation(File riseFile, File providerFile) {
+  private void reconciliation(File firstFile, File secondFile) {
+
     final TransactionService transactionService = new TransactionService();
-    final CompareResultDTO compareResult = transactionService.generateResultFile(providerFile, riseFile,
-      (String) providerCombo.getSelectedItem(), chooseLocationButton.getText());
+    final String selectedItem = (String) (currentTab == 0 ? providerClientCombo.getSelectedItem()
+      : providerClientCombo2.getSelectedItem());
+    final String resultFileLocation =
+      currentTab == 0 ? chooseLocationButton.getText() : chooseLocationButton2.getText();
+    final CompareResultDTO compareResult = transactionService.generateResultFile(firstFile, secondFile, selectedItem,
+      resultFileLocation, currentTab);
     CURRENCY_FORMATTER.setMaximumFractionDigits(0);
-    final String risePrice = CURRENCY_FORMATTER.format(compareResult.riseTotalPrice()).replace("Rp", RP);
-    final String providerPrice = CURRENCY_FORMATTER.format(compareResult.providerTotalPrice()).replace("Rp", RP);
-    riseTotalPrice.setText(risePrice);
-    providerTotalPrice.setText(providerPrice);
-    submitButton.setEnabled(false);
+
+    final String firstFileTotalPrice = CURRENCY_FORMATTER.format(compareResult.riseTotalPrice()).replace("Rp", RP);
+    final String secondFileTotalPrice = CURRENCY_FORMATTER.format(compareResult.providerTotalPrice()).replace("Rp", RP);
+    if (currentTab == 0) {
+      riseTotalPrice.setText(firstFileTotalPrice);
+      providerTotalPrice.setText(secondFileTotalPrice);
+      submitButton.setEnabled(false);
+    } else {
+      riseTotalPrice2.setText(firstFileTotalPrice);
+      clientTotalPrice2.setText(secondFileTotalPrice);
+      submitButton2.setEnabled(false);
+    }
     JOptionPane.showMessageDialog(this, compareResult.message());
   }
 
@@ -339,11 +517,25 @@ public class Dashboard extends JFrame {
     providerButton.setText(CHOOSE_FILE);
     riseButton.setText(CHOOSE_FILE);
     chooseLocationButton.setText(CHOOSE_FILE_LOCATION);
-    providerCombo.setSelectedIndex(0);
-    riseFile = null;
-    providerFile = null;
+    providerClientCombo.setSelectedIndex(0);
+    firstFile = null;
+    secondFile = null;
     providerTotalPrice.setText(RP_0);
     riseTotalPrice.setText(RP_0);
+  }
+
+  private void resetFields2() {
+    riseButton2.setEnabled(false);
+    submitButton2.setEnabled(false);
+    chooseLocationButton2.setEnabled(false);
+    clientButton2.setText(CHOOSE_FILE);
+    riseButton2.setText(CHOOSE_FILE);
+    chooseLocationButton2.setText(CHOOSE_FILE_LOCATION);
+    providerClientCombo2.setSelectedIndex(0);
+    firstFile = null;
+    secondFile = null;
+    clientTotalPrice2.setText(RP_0);
+    riseTotalPrice2.setText(RP_0);
   }
 
 }

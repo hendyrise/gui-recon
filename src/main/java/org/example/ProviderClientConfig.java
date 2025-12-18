@@ -1,6 +1,6 @@
 package org.example;
 
-public record ProviderConfig(String runningIdPath, String statusPath,
+public record ProviderClientConfig(String runningIdPath, String statusPath,
    String statusSuccess,
    int skipHeader,
    String header,
