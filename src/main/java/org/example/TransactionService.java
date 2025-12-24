@@ -77,7 +77,7 @@ public class TransactionService {
             refId = columns[Integer.parseInt(providerConfig.runningIdPath())];
           }
           final BigDecimal fee =
-            !providerConfig.feePath().isBlank() ? validatePrice(columns[Integer.parseInt(providerConfig.feePath())])
+            !providerConfig.feePath().isBlank() ? new BigDecimal(columns[Integer.parseInt(providerConfig.feePath())])
               : BigDecimal.ZERO;
           final BigDecimal price = validatePrice(columns[Integer.parseInt(providerConfig.pricePath())]);
           totalPrice = totalPrice.add(price).add(fee);
