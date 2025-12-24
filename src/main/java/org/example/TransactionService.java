@@ -19,22 +19,24 @@ import org.apache.commons.collections.CollectionUtils;
 public class TransactionService {
 
   private static final String CANNOT_WRITE_TO_RESULT_FILE = "Cannot write to result file [%s]";
+  private static final String CLIENT = "client";
   private static final String COMPARISON_COMPLETE_PLEASE_CHECK_IN_FOLDER_DOWNLOAD_WITH_FILE_NAME = "Comparison complete please check in folder download with file name [%s]";
   private static final String CSV = ".csv";
   private static final String DELLIMITER = AppConfig.getProperties("app.delimiter");
   private static final String FAILED_TO_COMPARE_FILE_AND_FILE = "Failed to Compare File [%s] and File [%s]";
   private static final String INVALID_HEADER_FOR_FILE = "Invalid Header for file [%s]";
-  private static final String PROVIDER_COUNT_HEADER_CONFIG = "provider.%s.header";
-  private static final String PROVIDER_PROVIDER_REF_ID_PATH_CONFIG = "provider.%s.provider-ref-id-path";
-  private static final String PROVIDER_PRICE_PATH_CONFIG = "provider.%s.price";
-  private static final String PROVIDER_FEE_PATH_CONFIG = "provider.%s.fee";
-  private static final int PROVIDER_REF_PATH = 4;
+  private static final String COUNT_HEADER_CONFIG = "%s.%s.header";
+  private static final String PROVIDER = "provider";
+  private static final String REF_ID_PATH_CONFIG = "%s.%s.ref-id-path";
+  private static final String PRICE_PATH_CONFIG = "%s.%s.price";
+  private static final String FEE_PATH_CONFIG = "%s.%s.fee";
+  private static final int REF_ID_PATH = 4;
   private static final int PRICE_PATH = 5;
   private static final int FEE_PATH = 6;
-  private static final String PROVIDER_RUNNING_ID_CONFIG = "provider.%s.running-id-path";
-  private static final String PROVIDER_SKIP_HEADER_CONFIG = "provider.%s.skip-header";
-  private static final String PROVIDER_STATUS_CONFIG = "provider.%s.status-path";
-  private static final String PROVIDER_STATUS_MESSAGE_CONFIG = "provider.%s.status-message";
+  private static final String RUNNING_ID_CONFIG = "%s.%s.running-id-path";
+  private static final String SKIP_HEADER_CONFIG = "%s.%s.skip-header";
+  private static final String STATUS_CONFIG = "%s.%s.status-path";
+  private static final String STATUS_MESSAGE_CONFIG = "%s.%s.status-message";
   private static final String RESULT_CSV = "-result.csv";
   private static final String RESULT_FILE_FORMAT = "%s\n";
   private static final String RESULT_FILE_PATH = "%s/%s";
@@ -44,7 +46,7 @@ public class TransactionService {
   public TransactionService() {
   }
 
-  private ResultFileDto extractTransactionIdFromProvider(File providerFile, ProviderConfig providerConfig) {
+  private ResultFileDto extractTransactionIdFromClientProvider(File providerFile, ProviderClientConfig providerConfig) {
     final Set<ProviderRefDTO> providerRefList = new HashSet<>();
     try (BufferedReader br = new BufferedReader(new FileReader(providerFile))) {
       String line;
@@ -74,8 +76,11 @@ public class TransactionService {
           } else {
             refId = columns[Integer.parseInt(providerConfig.runningIdPath())];
           }
-          totalPrice = totalPrice.add(new BigDecimal(columns[Integer.parseInt(providerConfig.pricePath())]))
-            .add(new BigDecimal(columns[Integer.parseInt(providerConfig.feePath())]));
+          final BigDecimal fee =
+            !providerConfig.feePath().isBlank() ? new BigDecimal(columns[Integer.parseInt(providerConfig.feePath())])
+              : BigDecimal.ZERO;
+          final BigDecimal price = validatePrice(columns[Integer.parseInt(providerConfig.pricePath())]);
+          totalPrice = totalPrice.add(price).add(fee);
           providerRefList.add(new ProviderRefDTO(refId.trim(), lineNumber));
         }
       }
@@ -85,16 +90,30 @@ public class TransactionService {
     }
   }
 
-  private ResultFileDto extractTransactionIdFromRise(File file, int refIndex) {
+  private BigDecimal validatePrice(String price) {
+    String finalPrice = price;
+    if (price.contains("Rp") || price.contains(".") || price.contains("-")) {
+      finalPrice = price.replace("Rp", "").replace(".", "").replace("-", "");
+    }
+    return new BigDecimal(finalPrice.trim());
+  }
+
+  private ResultFileDto extractTransactionIdFromRise(File file, int refIndex, boolean lineNumber) {
     Set<ProviderRefDTO> refList = new HashSet<>();
     try (BufferedReader br = new BufferedReader(new FileReader(file))) {
       String line;
       br.readLine();
       BigDecimal totalPrice = BigDecimal.ZERO;
+      int number = 0;
       while ((line = br.readLine()) != null) {
         final String[] parts = line.trim().split(DELLIMITER);
+        number += 1;
         totalPrice = totalPrice.add(new BigDecimal(parts[PRICE_PATH])).add(new BigDecimal(parts[FEE_PATH]));
-        refList.add(new ProviderRefDTO(parts[refIndex].trim(), null));
+        if (lineNumber) {
+          refList.add(new ProviderRefDTO(parts[refIndex].trim(), number));
+        } else {
+          refList.add(new ProviderRefDTO(parts[refIndex].trim(), null));
+        }
       }
       return new ResultFileDto(totalPrice, refList);
     } catch (IOException e) {
@@ -102,41 +121,51 @@ public class TransactionService {
     }
   }
 
-  private ProviderConfig generateProviderConfig(String selectedProvider) {
-    final String runningIdPath = AppConfig.getProperties(String.format(PROVIDER_RUNNING_ID_CONFIG, selectedProvider));
-    final String statusPath = AppConfig.getProperties(String.format(PROVIDER_STATUS_CONFIG, selectedProvider));
+  private ProviderClientConfig generateProviderClientConfig(String selectedData, int tab) {
+    final String data = tab == 0 ? PROVIDER : CLIENT;
+    final String runningIdPath = AppConfig.getProperties(String.format(RUNNING_ID_CONFIG, data, selectedData));
+    final String statusPath = AppConfig.getProperties(String.format(STATUS_CONFIG, data, selectedData));
     final int skipHeader = Integer.parseInt(
-      AppConfig.getProperties(String.format(PROVIDER_SKIP_HEADER_CONFIG, selectedProvider)));
-    final String header = AppConfig.getProperties(String.format(PROVIDER_COUNT_HEADER_CONFIG, selectedProvider));
-    final String statusMessage = AppConfig.getProperties(
-      String.format(PROVIDER_STATUS_MESSAGE_CONFIG, selectedProvider));
-    final String providerRefIdPath = AppConfig.getProperties(
-      String.format(PROVIDER_PROVIDER_REF_ID_PATH_CONFIG, selectedProvider));
-    final String pricePath = AppConfig.getProperties(String.format(PROVIDER_PRICE_PATH_CONFIG, selectedProvider));
-    final String feePath = AppConfig.getProperties(String.format(PROVIDER_FEE_PATH_CONFIG, selectedProvider));
-    return new ProviderConfig(runningIdPath, statusPath, statusMessage, skipHeader, header, providerRefIdPath,
+      AppConfig.getProperties(String.format(SKIP_HEADER_CONFIG, data, selectedData)));
+    final String header = AppConfig.getProperties(String.format(COUNT_HEADER_CONFIG, data, selectedData));
+    final String statusMessage = AppConfig.getProperties(String.format(STATUS_MESSAGE_CONFIG, data, selectedData));
+    final String providerRefIdPath = AppConfig.getProperties(String.format(REF_ID_PATH_CONFIG, data, selectedData));
+    final String pricePath = AppConfig.getProperties(String.format(PRICE_PATH_CONFIG, data, selectedData));
+    final String feePath = AppConfig.getProperties(String.format(FEE_PATH_CONFIG, data, selectedData));
+    return new ProviderClientConfig(runningIdPath, statusPath, statusMessage, skipHeader, header, providerRefIdPath,
       pricePath, feePath);
   }
 
-  public CompareResultDTO generateResultFile(File providerFile, File riseFile, String selectedProvider,
-    String fileLocation) {
-    final ProviderConfig providerConfig = generateProviderConfig(selectedProvider);
+  public CompareResultDTO generateResultFile(File firstFile, File secondFile, String selectedData,
+    String fileLocation, int tab) {
+    final ProviderClientConfig providerClientConfig = generateProviderClientConfig(selectedData, tab);
     try {
       final ForkJoinPool pool = new ForkJoinPool();
-      final CompletableFuture<ResultFileDto> riseFutureRef = CompletableFuture.supplyAsync(
-        () -> extractTransactionIdFromRise(riseFile, validateRefPath(providerConfig)), pool);
-      final CompletableFuture<ResultFileDto> providerFutureRef = CompletableFuture.supplyAsync(
-        () -> extractTransactionIdFromProvider(providerFile, providerConfig), pool);
+      final CompletableFuture<ResultFileDto> riseFutureRef = CompletableFuture.supplyAsync(() -> {
+        if (tab == 0) {
+          return extractTransactionIdFromRise(firstFile, validateRefPath(providerClientConfig), false);
+        } else {
+          return extractTransactionIdFromClientProvider(firstFile, providerClientConfig);
+        }
+      }, pool);
+      final CompletableFuture<ResultFileDto> providerFutureRef = CompletableFuture.supplyAsync(() -> {
+        if (tab == 0) {
+          return extractTransactionIdFromClientProvider(secondFile, providerClientConfig);
+        } else {
+          return extractTransactionIdFromRise(secondFile, validateRefPath(providerClientConfig), true);
+        }
+      }, pool);
       final ResultFileDto riseRefList = riseFutureRef.join();
       final ResultFileDto providerRefList = providerFutureRef.join();
       final Set<ProviderRefDTO> resultRefList = new HashSet<>(
         CollectionUtils.removeAll(providerRefList.refList(), riseRefList.refList()));
-      final String message = compareFile(resultRefList, fileLocation, providerFile, providerConfig.skipHeader(),
-        providerConfig.header());
+      final String header = tab == 0 ? providerClientConfig.header() : "Local Time,client_code,customer_id,running_id,client_ref";
+      final String message = compareFile(resultRefList, fileLocation, secondFile, providerClientConfig.skipHeader(),
+        header);
       return new CompareResultDTO(riseRefList.totalPrice(), providerRefList.totalPrice(), message);
     } catch (Exception e) {
       return new CompareResultDTO(BigDecimal.ZERO, BigDecimal.ZERO,
-        String.format(FAILED_TO_COMPARE_FILE_AND_FILE, riseFile.getName(), providerFile.getName()));
+        String.format(FAILED_TO_COMPARE_FILE_AND_FILE, firstFile.getName(), secondFile.getName()));
     }
   }
 
@@ -174,8 +203,8 @@ public class TransactionService {
     return !configHeader.equalsIgnoreCase(finalHeader);
   }
 
-  private int validateRefPath(ProviderConfig providerConfig) {
-    return providerConfig.runningIdPath().isBlank() ? PROVIDER_REF_PATH : RISE_RUNNING_ID_PATH;
+  private int validateRefPath(ProviderClientConfig providerConfig) {
+    return providerConfig.runningIdPath().isBlank() ? REF_ID_PATH : RISE_RUNNING_ID_PATH;
   }
 }
 
